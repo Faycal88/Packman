@@ -1,5 +1,6 @@
 const canvas = document.querySelector("#game");
 const c = canvas.getContext("2d");
+const scoreEl = document.querySelector("#scoreEl");
 
 canvas.width = innerWidth;
 canvas.height = innerHeight;
@@ -41,7 +42,63 @@ class Player {
   }
 }
 
+class koulMan {
+  constructor({ position, velocity, color = "red" }) {
+    this.position = position;
+    this.velocity = velocity;
+    this.radius = 15;
+    this.color = color;
+    this.prevCollision = [];
+  }
+
+  draw() {
+    c.beginPath();
+    c.arc(this.position.x, this.position.y, this.radius, 0, Math.PI * 2);
+    c.fillStyle = this.color;
+    c.fill();
+    c.closePath();
+  }
+
+  update() {
+    this.draw();
+    this.position.x += this.velocity.x;
+    this.position.y += this.velocity.y;
+  }
+}
+
+class Star {
+  static width = 40;
+  static height = 40;
+  constructor({ position }) {
+    this.position = position;
+    this.width = this.height = 5;
+    this.radius = 5;
+  }
+
+  draw() {
+    c.beginPath();
+    c.arc(this.position.x, this.position.y, this.radius, 0, Math.PI * 2);
+    c.fillStyle = "yellow";
+    c.fill();
+    c.closePath();
+  }
+}
+
 const boundaries = [];
+const stars = [];
+const ghosts = [
+  new koulMan({
+    position: {
+      x: Boundary.width * 6 + Boundary.width / 2,
+      y: Boundary.height + Boundary.height / 2,
+    },
+    velocity: {
+      x: 2,
+      y: 0,
+    },
+  }),
+];
+console.log(ghosts);
 const player = new Player({
   position: {
     x: Boundary.width + Boundary.width / 2,
@@ -68,6 +125,7 @@ const keys = {
 };
 
 let lastkey = "";
+let score = 0;
 
 map.forEach((row, index) => {
   row.forEach((symbol, j) => {
@@ -176,12 +234,24 @@ map.forEach((row, index) => {
           })
         );
         break;
+      case "star":
+        stars.push(
+          new Star({
+            position: {
+              x: Star.width * j - Star.width / 2,
+              y: Star.height * index - Star.height / 2,
+            },
+          })
+        );
+        break;
 
       default:
         break;
     }
   });
 });
+
+console.log(stars, "stars");
 
 function packmanCollisionDetection({ circle, rectangle }) {
   return (
@@ -286,6 +356,22 @@ function animate() {
     }
   }
 
+  //deleting stars when eaten koul man
+  stars.forEach((star, index) => {
+    star.draw();
+    if (
+      Math.hypot(
+        star.position.x - player.position.x,
+        star.position.y - player.position.y
+      ) <
+      star.radius + player.radius
+    ) {
+      stars.splice(index, 1);
+      score += 10;
+      scoreEl.innerHTML = score;
+    }
+  });
+
   boundaries.forEach((boundary) => {
     boundary.draw();
     if (
@@ -303,6 +389,113 @@ function animate() {
   player.update();
   /*  player.velocity.y = 0;
   player.velocity.x = 0; */
+
+  ghosts.forEach((ghost) => {
+    ghost.update();
+    const collisions = [];
+    boundaries.forEach((boundary) => {
+      if (
+        !collisions.includes("right") &&
+        packmanCollisionDetection({
+          circle: {
+            ...ghost,
+            velocity: {
+              x: 5,
+              y: 0,
+            },
+          },
+          rectangle: boundary,
+        })
+      ) {
+        collisions.push("right");
+      }
+
+      if (
+        !collisions.includes("left") &&
+        packmanCollisionDetection({
+          circle: {
+            ...ghost,
+            velocity: {
+              x: -5,
+              y: 0,
+            },
+          },
+          rectangle: boundary,
+        })
+      ) {
+        collisions.push("left");
+      }
+
+      if (
+        !collisions.includes("up") &&
+        packmanCollisionDetection({
+          circle: {
+            ...ghost,
+            velocity: {
+              x: 0,
+              y: -5,
+            },
+          },
+          rectangle: boundary,
+        })
+      ) {
+        collisions.push("up");
+      }
+
+      if (
+        !collisions.includes("down") &&
+        packmanCollisionDetection({
+          circle: {
+            ...ghost,
+            velocity: {
+              x: 0,
+              y: 5,
+            },
+          },
+          rectangle: boundary,
+        })
+      ) {
+        collisions.push("down");
+      }
+      /* console.log(collisions); */
+    });
+    if (collisions.length > ghost.prevCollision.length) {
+      ghost.prevCollision = collisions;
+    }
+    if (JSON.stringify(collisions) !== JSON.stringify(ghost.prevCollision)) {
+      if (ghost.velocity.x > 0) ghost.prevCollision.push("right");
+      else if (ghost.velocity.x < 0) ghost.prevCollision.push("left");
+      else if (ghost.velocity.y < 0) ghost.prevCollision.push("up");
+      else if (ghost.velocity.y > 0) ghost.prevCollision.push("down");
+      const pathways = ghost.prevCollision.filter((collision) => {
+        return !collisions.includes(collision);
+      });
+      const directions = pathways[Math.floor(Math.random() * pathways.length)];
+
+      switch (directions) {
+        case "down":
+          ghost.velocity.x = 0;
+          ghost.velocity.y = -2;
+          break;
+        case "up":
+          ghost.velocity.x = 0;
+          ghost.velocity.y = 2;
+          break;
+        case "right":
+          ghost.velocity.x = 2;
+          ghost.velocity.y = 0;
+          break;
+        case "left":
+          ghost.velocity.x = -2;
+          ghost.velocity.y = 0;
+          break;
+
+        default:
+          break;
+      }
+      ghost.prevCollision = [];
+    }
+  });
 }
 
 animate();
